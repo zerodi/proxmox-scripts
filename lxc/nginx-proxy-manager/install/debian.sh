@@ -21,6 +21,7 @@ log() {
   logs=$(cat $TEMPLOG | sed -e "s/34/32/g" | sed -e "s/info/success/g");
   clear && printf "\033c\e[3J$logs\n\e[34m[info] $*\e[0m\n" | tee $TEMPLOG;
 }
+
 runcmd() { 
   LASTCMD=$(grep -n "$*" "$0" | sed "s/[[:blank:]]*runcmd//");
   if [[ "$#" -eq 1 ]]; then
@@ -29,6 +30,7 @@ runcmd() {
     $@ 2>$TEMPERR;
   fi
 }
+
 trapexit() {
   status=$?
   
@@ -44,9 +46,9 @@ trapexit() {
   fi
   
   # Cleanup
-  apt-get remove --purge -y $DEVDEPS -qq &>/dev/null
-  apt-get autoremove -y -qq &>/dev/null
-  apt-get clean
+  apt remove --purge -y $DEVDEPS -qq &>/dev/null
+  apt autoremove -y -qq &>/dev/null
+  apt clean
   rm -rf $TEMPDIR
   rm -rf /root/.cache
 }
@@ -69,9 +71,10 @@ fi
 
 # Install dependencies
 log "Installing dependencies"
-runcmd apt-get update
+runcmd apt update
 export DEBIAN_FRONTEND=noninteractive
-runcmd 'apt-get install -y --no-install-recommends $DEVDEPS gnupg openssl ca-certificates apache2-utils logrotate'
+runcmd 'apt install -y --no-install-recommends $DEVDEPS curl gnupg openssl ca-certificates apache2-utils logrotate'
+runcmd mkdir -p /etc/apt/keyrings
 
 # Install Python
 log "Installing python"
@@ -95,12 +98,15 @@ if [ $DISTRO_ID = "ubuntu" ]; then
 else
   echo "deb [trusted=yes] http://openresty.org/package/$DISTRO_ID ${_distro_release:-bullseye} openresty" | tee /etc/apt/sources.list.d/openresty.list
 fi
-runcmd apt-get update && apt-get install -y -q --no-install-recommends openresty
+runcmd apt update && apt install -y -q --no-install-recommends openresty
 
 # Install nodejs
 log "Installing nodejs"
-runcmd wget -qO - https://deb.nodesource.com/setup_16.x | bash -
-runcmd apt-get install -y -q --no-install-recommends nodejs
+curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+NODE_MAJOR=18
+echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+runcmd apt update
+runcmd apt install -y -q --no-install-recommends nodejs
 runcmd npm install --global yarn
 
 # Get latest version information for nginx-proxy-manager
